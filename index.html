@@ -9,6 +9,8 @@
     :root {
       --red: #ff2a2a;
       --red-glow: rgba(255, 42, 42, 0.55);
+      --yellow: #ffb82a;
+      --yellow-glow: rgba(255, 184, 42, 0.55);
       --white: #ffffff;
       --panel-border: rgba(255, 255, 255, 0.28);
     }
@@ -37,6 +39,16 @@
       width: 100vw;
       display: flex;
       flex-direction: column;
+    }
+
+    /* Menyembunyikan placeholder logo saat kelas ini aktif */
+    .board.hide-placeholders .logo-wrap:not(.has-image) {
+      display: none;
+    }
+
+    /* Tombol hapus logo hanya tampil saat jeda; foto tetap bisa diganti kapan saja */
+    .board.is-running .logo-remove-btn {
+      display: none !important;
     }
 
     /* ---------- TOP CONTROLS ---------- */
@@ -163,7 +175,6 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      overflow: hidden;
       cursor: pointer;
       position: relative;
       flex-shrink: 0;
@@ -173,6 +184,18 @@
     .logo-wrap:hover {
       border-color: var(--red);
       transform: scale(1.03);
+    }
+
+    /* Wadah dalam yang benar-benar membulatkan & memotong gambar/placeholder;
+       tombol hapus TIDAK berada di dalam elemen ini agar tidak ikut terpotong */
+    .logo-circle {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .logo-wrap img {
@@ -194,6 +217,41 @@
       font-size: clamp(1.4rem, 3vw, 2.8rem);
       color: rgba(255, 255, 255, 0.35);
       font-weight: 300;
+    }
+
+    /* Tombol hapus logo — didudukkan tepat di atas garis border lingkaran,
+       di luar area yang dipotong (.logo-circle), jadi tidak akan hilang di layar besar */
+    .logo-remove-btn {
+      position: absolute;
+      top: 0;
+      right: 0;
+      transform: translate(30%, -30%);
+      width: clamp(20px, 2.6vw, 32px);
+      height: clamp(20px, 2.6vw, 32px);
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      background: rgba(0, 0, 0, 0.75);
+      color: var(--white);
+      font-size: clamp(0.75rem, 1.3vw, 1.05rem);
+      line-height: 1;
+      font-weight: 700;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      z-index: 3;
+      box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.5);
+      transition: background .15s ease, transform .15s ease;
+    }
+
+    .logo-remove-btn:hover {
+      background: var(--red);
+      transform: translate(30%, -30%) scale(1.1);
+    }
+
+    .logo-wrap.has-image .logo-remove-btn {
+      display: flex;
     }
 
     .score {
@@ -284,6 +342,57 @@
 
     .time.critical {
       animation: pulse 1s infinite ease-in-out;
+    }
+
+    /* ---------- TIMEOUT SECTION ---------- */
+    .timeout-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: clamp(10px, 3vh, 20px);
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+
+    .timeout-container:hover,
+    .timeout-container.active {
+      opacity: 1;
+    }
+
+    .timeout-label {
+      color: var(--yellow);
+      font-size: clamp(0.7rem, 1.5vw, 1.2rem);
+      font-weight: 800;
+      letter-spacing: 0.2em;
+      margin-bottom: -5px;
+    }
+
+    .timeout-time {
+      color: var(--yellow);
+      font-size: clamp(1.8rem, 4vw, 4rem);
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      text-shadow: 0 0 15px var(--yellow-glow);
+      cursor: pointer;
+      padding: 2px clamp(10px, 1.5vw, 20px);
+      border-radius: 10px;
+      border: 2px solid transparent;
+      outline: none;
+    }
+
+    .timeout-time.selected {
+      border-color: var(--yellow);
+    }
+
+    .timeout-time:hover {
+      border-color: rgba(255, 184, 42, 0.4);
+    }
+
+    .timeout-time[contenteditable="true"] {
+      background: rgba(255, 184, 42, 0.1);
+      border-style: solid;
+      border-color: var(--yellow);
     }
 
     @keyframes pulse {
@@ -494,10 +603,11 @@
 
 <body>
 
-  <div class="board">
+  <div class="board" id="mainBoard">
 
     <div class="top-controls" id="topControls">
-      <button class="ctrl-btn" id="pauseBtn">⏸ <span class="label">Jeda</span></button>
+      <button class="ctrl-btn" id="pauseBtn"><span class="label">Pause</span></button>
+      <button class="ctrl-btn" id="toggleLogoBtn"><span class="label">Logo</span></button>
       <button class="ctrl-btn" id="showScoreBtn"><span class="label">Tampilkan Skor</span></button>
       <button class="ctrl-btn" id="fullscreenBtn">⛶ <span class="label">Fullscreen</span></button>
       <button class="ctrl-btn" id="clearBtn"><span class="label">></span></button>
@@ -506,33 +616,41 @@
     <div class="restore-tab" id="restoreTab" title="Tampilkan tombol">⋯</div>
 
     <div class="hud-hint" id="hudHint">
-    
+
     </div>
 
     <div class="main-grid">
 
-      <!-- LEFT TEAM -->
       <div class="team-panel">
         <div class="team-name" contenteditable="false" data-default="TIM A" id="nameLeft">TIM A</div>
         <div class="logo-wrap" id="logoWrapLeft">
-          <img id="logoImgLeft" src="" alt="Logo Tim A" />
-          <div class="logo-placeholder">+</div>
+          <div class="logo-circle">
+            <img id="logoImgLeft" src="" alt="Logo Tim A" />
+            <div class="logo-placeholder">+</div>
+          </div>
+          <button type="button" class="logo-remove-btn" id="logoRemoveLeft" title="Hapus logo" aria-label="Hapus logo">✕</button>
         </div>
         <div class="score" id="scoreLeft" tabindex="0">0</div>
       </div>
 
-      <!-- CENTER -->
       <div class="center-panel">
         <div class="quarter" id="quarterDisplay" tabindex="0">Q1</div>
         <div class="time" id="timeDisplay" tabindex="0">10:00</div>
+
+        <div class="timeout-container" id="timeoutContainer">
+          <div class="timeout-label">TIMEOUT</div>
+          <div class="timeout-time" id="timeoutDisplay" tabindex="0">00:00</div>
+        </div>
       </div>
 
-      <!-- RIGHT TEAM -->
       <div class="team-panel">
         <div class="team-name" contenteditable="false" data-default="TIM B" id="nameRight">TIM B</div>
         <div class="logo-wrap" id="logoWrapRight">
-          <img id="logoImgRight" src="" alt="Logo Tim B" />
-          <div class="logo-placeholder">+</div>
+          <div class="logo-circle">
+            <img id="logoImgRight" src="" alt="Logo Tim B" />
+            <div class="logo-placeholder">+</div>
+          </div>
+          <button type="button" class="logo-remove-btn" id="logoRemoveRight" title="Hapus logo" aria-label="Hapus logo">✕</button>
         </div>
         <div class="score" id="scoreRight" tabindex="0">0</div>
       </div>
@@ -543,7 +661,6 @@
     <input type="file" id="fileInputRight" accept="image/*" style="display:none" />
   </div>
 
-  <!-- FULLSCREEN SCORE MODAL -->
   <div class="modal-overlay" id="scoreModal">
     <button class="modal-close" id="modalClose">✕</button>
     <div class="modal-content">
@@ -561,7 +678,6 @@
     </div>
   </div>
 
-  <!-- INSTAGRAM FOLLOW MODAL -->
   <div class="ig-modal-overlay" id="igModalOverlay">
     <div class="ig-modal-card">
       <button class="ig-modal-close" id="igModalClose">✕</button>
@@ -581,19 +697,26 @@
       let quarterIndex = 0;
 
       let remainingMs = 10 * 60 * 1000; // default 10:00
+      let timeoutMs = 0; // Waktu timeout
       let isRunning = false;
+      let activeTimer = null; // 'main' atau 'timeout'
       let lastTs = null;
+      let isLogoHidden = false; // Status untuk sembunyikan logo
+      let autoHiddenByStart = false; // true jika logo disembunyikan otomatis (bukan oleh tombol Logo)
+
       const MS_DISPLAY_THRESHOLD = 10000; // tampilkan milidetik 10 detik terakhir
       const ZERO_BLINK_DURATION = 3000; // waktu berkedip 3 detik saat mencapai 0
       let zeroTimeoutId = null;
 
-      let selectedTarget = 'time'; // 'time' | 'quarter' | 'scoreLeft' | 'scoreRight'
+      let selectedTarget = 'time'; // 'time' | 'timeout' | 'quarter' | 'scoreLeft' | 'scoreRight'
 
       // ---------------- ELEMENT REFS ----------------
+      const mainBoard = document.getElementById('mainBoard');
       const topControls = document.getElementById('topControls');
       const restoreTab = document.getElementById('restoreTab');
       const hudHint = document.getElementById('hudHint');
       const pauseBtn = document.getElementById('pauseBtn');
+      const toggleLogoBtn = document.getElementById('toggleLogoBtn');
       const clearBtn = document.getElementById('clearBtn');
       const showScoreBtn = document.getElementById('showScoreBtn');
       const fullscreenBtn = document.getElementById('fullscreenBtn');
@@ -606,11 +729,15 @@
       const logoImgRight = document.getElementById('logoImgRight');
       const fileInputLeft = document.getElementById('fileInputLeft');
       const fileInputRight = document.getElementById('fileInputRight');
+      const logoRemoveLeft = document.getElementById('logoRemoveLeft');
+      const logoRemoveRight = document.getElementById('logoRemoveRight');
       const scoreLeftEl = document.getElementById('scoreLeft');
       const scoreRightEl = document.getElementById('scoreRight');
 
       const quarterDisplay = document.getElementById('quarterDisplay');
       const timeDisplay = document.getElementById('timeDisplay');
+      const timeoutDisplay = document.getElementById('timeoutDisplay');
+      const timeoutContainer = document.getElementById('timeoutContainer');
 
       const scoreModal = document.getElementById('scoreModal');
       const modalClose = document.getElementById('modalClose');
@@ -624,10 +751,27 @@
       const igModalOverlay = document.getElementById('igModalOverlay');
       const igModalClose = document.getElementById('igModalClose');
 
+      // ---------------- TOGGLE LOGO LOGIC ----------------
+      function setLogoHidden(hidden) {
+        isLogoHidden = hidden;
+        if (isLogoHidden) {
+          mainBoard.classList.add('hide-placeholders');
+          toggleLogoBtn.innerHTML = '<span class="label">Logo</span>';
+        } else {
+          mainBoard.classList.remove('hide-placeholders');
+          toggleLogoBtn.innerHTML = '<span class="label">Logo</span>';
+        }
+      }
+
+      toggleLogoBtn.addEventListener('click', function () {
+        autoHiddenByStart = false; // ini aksi manual pengguna, bukan otomatis
+        setLogoHidden(!isLogoHidden);
+      });
+
       // ---------------- TIME FORMAT & RENDER ----------------
-      function formatTime(ms) {
+      function formatTime(ms, showMillis) {
         if (ms < 0) ms = 0;
-        if (ms <= MS_DISPLAY_THRESHOLD) {
+        if (showMillis && ms <= MS_DISPLAY_THRESHOLD && ms > 0) {
           return (ms / 1000).toFixed(2);
         }
         const totalSec = Math.ceil(ms / 1000);
@@ -637,7 +781,16 @@
       }
 
       function renderTime() {
-        timeDisplay.textContent = formatTime(remainingMs);
+        timeDisplay.textContent = formatTime(remainingMs, true);
+      }
+
+      function renderTimeout() {
+        timeoutDisplay.textContent = formatTime(timeoutMs, false);
+        if (timeoutMs > 0 || activeTimer === 'timeout') {
+          timeoutContainer.classList.add('active');
+        } else {
+          timeoutContainer.classList.remove('active');
+        }
       }
 
       function clearZeroSequence() {
@@ -663,8 +816,8 @@
 
       function updatePauseBtn() {
         pauseBtn.innerHTML = isRunning
-          ? '⏸ <span class="label">Jeda</span>'
-          : '▶ <span class="label">Lanjut</span>';
+          ? ' <span class="label">Pause</span>'
+          : ' <span class="label">Start</span>';
       }
 
       function tick(ts) {
@@ -672,23 +825,59 @@
         if (lastTs === null) lastTs = ts;
         const delta = ts - lastTs;
         lastTs = ts;
-        remainingMs -= delta;
-        if (remainingMs <= 0) {
-          remainingMs = 0;
-          isRunning = false;
-          updatePauseBtn();
-          renderTime();
-          triggerZeroSequence();
-          return;
+
+        if (activeTimer === 'timeout') {
+          timeoutMs -= delta;
+          if (timeoutMs <= 0) {
+            timeoutMs = 0;
+            // Timeout habis, otomatis lanjut ke timer utama
+            activeTimer = 'main';
+          }
+          renderTimeout();
         }
-        renderTime();
+        else if (activeTimer === 'main') {
+          remainingMs -= delta;
+          if (remainingMs <= 0) {
+            remainingMs = 0;
+            isRunning = false;
+            mainBoard.classList.remove('is-running');
+            activeTimer = null;
+            updatePauseBtn();
+            renderTime();
+            revealLogoIfAutoHidden();
+            triggerZeroSequence();
+            return;
+          }
+          renderTime();
+        }
+
         if (isRunning) requestAnimationFrame(tick);
       }
 
+      // Tampilkan kembali logo agar bisa diganti/dihapus saat jeda,
+      // tapi hanya jika sebelumnya disembunyikan secara otomatis (bukan oleh tombol Logo)
+      function revealLogoIfAutoHidden() {
+        if (autoHiddenByStart) {
+          setLogoHidden(false);
+          autoHiddenByStart = false;
+        }
+      }
+
       function startTimer() {
-        if (isRunning || remainingMs <= 0) return;
+        if (isRunning) return;
+        if (remainingMs <= 0 && timeoutMs <= 0) return;
+
+        // Otomatis sembunyikan logo kosong jika waktu dimulai
+        if (!isLogoHidden) {
+          setLogoHidden(true);
+          autoHiddenByStart = true;
+        }
+
         clearZeroSequence();
         isRunning = true;
+        mainBoard.classList.add('is-running'); // sembunyikan tombol hapus logo saat berjalan
+        // Prioritaskan Timeout jika waktunya masih ada
+        activeTimer = timeoutMs > 0 ? 'timeout' : 'main';
         lastTs = null;
         updatePauseBtn();
         requestAnimationFrame(tick);
@@ -696,7 +885,10 @@
 
       function stopTimer() {
         isRunning = false;
+        mainBoard.classList.remove('is-running'); // tampilkan lagi tombol hapus logo saat jeda
         updatePauseBtn();
+        // Saat jeda, izinkan logo diganti/dihapus kembali jika disembunyikan otomatis
+        revealLogoIfAutoHidden();
       }
 
       pauseBtn.addEventListener('click', function () {
@@ -707,8 +899,8 @@
       function updateFullscreenBtn() {
         const isFs = !!document.fullscreenElement;
         fullscreenBtn.innerHTML = isFs
-          ? '⛶ <span class="label">Keluar Fullscreen</span>'
-          : '⛶ <span class="label">Fullscreen</span>';
+          ? '<span class="label">Exit Fullscreen</span>'
+          : '<span class="label">Fullscreen</span>';
       }
       fullscreenBtn.addEventListener('click', function () {
         if (!document.fullscreenElement) {
@@ -750,7 +942,7 @@
             el.textContent = before;
             el.blur();
           }
-          e.stopPropagation(); // don't let arrow keys leak to global handler while typing
+          e.stopPropagation();
         });
         el.addEventListener('blur', function () {
           el.setAttribute('contenteditable', 'false');
@@ -763,7 +955,11 @@
 
       // ---------------- LOGO UPLOAD ----------------
       function setupLogo(wrapEl, imgEl, inputEl) {
-        wrapEl.addEventListener('click', function () { inputEl.click(); });
+        wrapEl.addEventListener('click', function () {
+          // Jangan buka file input jika sedang disembunyikan paksa
+          if (mainBoard.classList.contains('hide-placeholders') && !wrapEl.classList.contains('has-image')) return;
+          inputEl.click();
+        });
         inputEl.addEventListener('change', function () {
           const file = inputEl.files && inputEl.files[0];
           if (!file) return;
@@ -779,11 +975,27 @@
       setupLogo(logoWrapLeft, logoImgLeft, fileInputLeft);
       setupLogo(logoWrapRight, logoImgRight, fileInputRight);
 
-      // ---------------- SELECT TARGET (quarter / time / score) ----------------
+      // ---------------- HAPUS LOGO ----------------
+      function removeLogo(wrapEl, imgEl, inputEl) {
+        imgEl.src = '';
+        wrapEl.classList.remove('has-image');
+        inputEl.value = '';
+      }
+      function setupLogoRemove(btnEl, wrapEl, imgEl, inputEl) {
+        btnEl.addEventListener('click', function (e) {
+          e.stopPropagation(); // agar tidak ikut membuka dialog pilih file
+          removeLogo(wrapEl, imgEl, inputEl);
+        });
+      }
+      setupLogoRemove(logoRemoveLeft, logoWrapLeft, logoImgLeft, fileInputLeft);
+      setupLogoRemove(logoRemoveRight, logoWrapRight, logoImgRight, fileInputRight);
+
+      // ---------------- SELECT TARGET (quarter / time / timeout / score) ----------------
       function selectTarget(target) {
         selectedTarget = target;
         quarterDisplay.classList.toggle('selected', target === 'quarter');
         timeDisplay.classList.toggle('selected', target === 'time');
+        timeoutDisplay.classList.toggle('selected', target === 'timeout');
         scoreLeftEl.classList.toggle('selected', target === 'scoreLeft');
         scoreRightEl.classList.toggle('selected', target === 'scoreRight');
       }
@@ -791,6 +1003,52 @@
       // ---------------- QUARTER SELECT ----------------
       quarterDisplay.addEventListener('click', function () {
         selectTarget('quarter');
+      });
+
+      // ---------------- TIMEOUT SELECT + IN-PLACE EDIT ----------------
+      let timeoutBefore = timeoutDisplay.textContent;
+
+      timeoutDisplay.addEventListener('click', function () {
+        if (timeoutDisplay.getAttribute('contenteditable') === 'true') return;
+        selectTarget('timeout');
+      });
+
+      // Klik dua kali untuk mengetik langsung waktu timeout lewat keyboard (sama seperti waktu utama)
+      timeoutDisplay.addEventListener('dblclick', function () {
+        if (activeTimer === 'timeout') stopTimer();
+        timeoutBefore = timeoutDisplay.textContent;
+        timeoutDisplay.setAttribute('contenteditable', 'true');
+        timeoutDisplay.focus();
+        document.execCommand('selectAll', false, null);
+      });
+
+      function commitTimeoutEdit() {
+        const raw = timeoutDisplay.textContent;
+        const parsed = parseTimeInput(raw);
+        timeoutDisplay.setAttribute('contenteditable', 'false');
+        if (parsed !== null && parsed >= 0) {
+          timeoutMs = parsed;
+        }
+        renderTimeout();
+      }
+
+      timeoutDisplay.addEventListener('keydown', function (e) {
+        if (timeoutDisplay.getAttribute('contenteditable') === 'true') {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commitTimeoutEdit();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            timeoutDisplay.textContent = timeoutBefore;
+            timeoutDisplay.setAttribute('contenteditable', 'false');
+          }
+          e.stopPropagation();
+        }
+      });
+      timeoutDisplay.addEventListener('blur', function () {
+        if (timeoutDisplay.getAttribute('contenteditable') === 'true') {
+          commitTimeoutEdit();
+        }
       });
 
       // ---------------- TIME SELECT + IN-PLACE EDIT ----------------
@@ -916,11 +1174,12 @@
         const isEditingText = active && (
           active.getAttribute && active.getAttribute('contenteditable') === 'true'
         );
-        if (isEditingText) return; // let text editing handle its own keys
+        if (isEditingText) return;
 
         if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
           e.preventDefault();
           const dir = e.key === 'ArrowUp' ? 1 : -1;
+
           if (selectedTarget === 'quarter') {
             quarterIndex = Math.min(Math.max(quarterIndex + dir, 0), quarterLabels.length - 1);
             renderQuarter();
@@ -930,13 +1189,16 @@
           } else if (selectedTarget === 'scoreRight') {
             scoreRight = Math.max(0, scoreRight + dir);
             scoreRightEl.textContent = scoreRight;
+          } else if (selectedTarget === 'timeout') {
+            timeoutMs = Math.max(0, timeoutMs + dir * 60000); // 1 menit (60000ms)
+            renderTimeout();
           } else {
             clearZeroSequence();
             remainingMs = Math.max(0, remainingMs + dir * 60000); // 1 menit
             renderTime();
           }
         } else if (e.key === ' ' || e.code === 'Space') {
-          if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA') return; // biarkan tombol fokus tangani sendiri
+          if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA') return;
           e.preventDefault();
           if (isRunning) stopTimer(); else startTimer();
         } else if (e.key === 'Escape') {
@@ -984,6 +1246,7 @@
 
       // ---------------- INIT ----------------
       renderTime();
+      renderTimeout();
       renderQuarter();
       updatePauseBtn();
       updateFullscreenBtn();
