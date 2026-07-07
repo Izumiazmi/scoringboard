@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Papan Skor Basket</title>
+  <style>
+    :root {
+      --red: #ff2a2a;
+      --red-glow: rgba(255, 42, 42, 0.55);
+      --white: #ffffff;
+      --panel-border: rgba(255, 255, 255, 0.28);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      background: #000;
+      color: var(--white);
+      overflow: hidden;
+      font-family: "Helvetica Neue", Arial, "Segoe UI", sans-serif;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    .board {
+      position: relative;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---------- TOP CONTROLS ---------- */
+    .top-controls {
+      position: fixed;
+      top: clamp(10px, 2vh, 26px);
+      right: clamp(10px, 2vw, 34px);
+      display: flex;
+      gap: clamp(6px, 1vw, 14px);
+      z-index: 50;
+    }
+
+    .ctrl-btn {
+      background: transparent;
+      border: 2px solid var(--panel-border);
+      color: var(--white);
+      font-size: clamp(0.7rem, 1.1vw, 1rem);
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      padding: clamp(8px, 1vh, 14px) clamp(12px, 1.6vw, 22px);
+      border-radius: 999px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all .15s ease;
+      white-space: nowrap;
+    }
+
+    .ctrl-btn:hover {
+      background: var(--white);
+      color: #000;
+      border-color: var(--white);
+    }
+
+    .ctrl-btn:active {
+      transform: scale(0.95);
+    }
+
+    .restore-tab {
+      position: fixed;
+      top: clamp(10px, 2vh, 26px);
+      right: clamp(10px, 2vw, 34px);
+      width: clamp(34px, 4vw, 48px);
+      height: clamp(34px, 4vw, 48px);
+      border-radius: 50%;
+      border: 2px solid var(--panel-border);
+      background: rgba(0, 0, 0, 0.4);
+      color: var(--white);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      cursor: pointer;
+      z-index: 50;
+    }
+
+    .restore-tab:hover {
+      border-color: var(--white);
+    }
+
+    .hud-hint {
+      position: fixed;
+      bottom: clamp(8px, 2vh, 18px);
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: clamp(0.6rem, 0.9vw, 0.8rem);
+      color: rgba(255, 255, 255, 0.35);
+      letter-spacing: 0.02em;
+      text-align: center;
+      z-index: 40;
+      pointer-events: none;
+    }
+
+    /* ---------- MAIN GRID ---------- */
+    .main-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr minmax(220px, 1.15fr) 1fr;
+      align-items: center;
+      padding: 0 clamp(16px, 4vw, 90px);
+      gap: clamp(8px, 2vw, 40px);
+    }
+
+    .team-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(10px, 1.6vh, 22px);
+      min-width: 0;
+    }
+
+    .team-name {
+      font-size: clamp(1.1rem, 2.4vw, 2.7rem);
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      text-align: center;
+      padding: 4px clamp(10px, 1.4vw, 20px);
+      border-radius: 10px;
+      border: 2px dashed transparent;
+      cursor: text;
+      max-width: 100%;
+      overflow-wrap: break-word;
+      outline: none;
+    }
+
+    .team-name:hover {
+      border-color: var(--panel-border);
+    }
+
+    .team-name[contenteditable="true"] {
+      border-color: var(--white);
+      background: rgba(255, 255, 255, 0.08);
+      border-style: solid;
+    }
+
+    .logo-wrap {
+      width: clamp(64px, 9vw, 170px);
+      height: clamp(64px, 9vw, 170px);
+      border-radius: 50%;
+      border: 3px solid var(--white);
+      background: #0d0d0d;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      cursor: pointer;
+      position: relative;
+      flex-shrink: 0;
+      transition: border-color .15s ease, transform .15s ease;
+    }
+
+    .logo-wrap:hover {
+      border-color: var(--red);
+      transform: scale(1.03);
+    }
+
+    .logo-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+
+    .logo-wrap.has-image img {
+      display: block;
+    }
+
+    .logo-wrap.has-image .logo-placeholder {
+      display: none;
+    }
+
+    .logo-placeholder {
+      font-size: clamp(1.4rem, 3vw, 2.8rem);
+      color: rgba(255, 255, 255, 0.35);
+      font-weight: 300;
+    }
+
+    .score {
+      font-size: clamp(3.2rem, 11.5vw, 13rem);
+      font-weight: 900;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+      cursor: pointer;
+      padding: 2px clamp(18px, 2.4vw, 34px);
+      border-radius: 16px;
+      border: 2px solid transparent;
+      outline: none;
+    }
+
+    .score:hover {
+      border-color: rgba(255, 255, 255, 0.35);
+    }
+
+    .score.selected {
+      border-color: var(--white);
+    }
+
+    .score[contenteditable="true"] {
+      background: rgba(255, 255, 255, 0.1);
+      border-style: solid;
+      border-color: var(--white);
+    }
+
+    /* ---------- CENTER PANEL ---------- */
+    .center-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(2px, 0.8vh, 10px);
+      min-width: 0;
+    }
+
+    .quarter {
+      color: var(--red);
+      font-size: clamp(1.4rem, 3.4vw, 3rem);
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-shadow: 0 0 14px var(--red-glow);
+      cursor: pointer;
+      padding: 4px clamp(14px, 2vw, 26px);
+      border-radius: 8px;
+      border: 2px solid transparent;
+    }
+
+    .quarter.selected {
+      border-color: var(--red);
+    }
+
+    .quarter:hover {
+      border-color: rgba(255, 42, 42, 0.4);
+    }
+
+    .time {
+      color: var(--red);
+      font-size: clamp(3rem, 11vw, 11.5rem);
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      text-shadow: 0 0 22px var(--red-glow), 0 0 6px rgba(255, 60, 60, 0.85);
+      cursor: pointer;
+      padding: 2px clamp(16px, 2.4vw, 32px);
+      border-radius: 14px;
+      border: 2px solid transparent;
+      outline: none;
+      min-width: 1ch;
+    }
+
+    .time.selected {
+      border-color: var(--red);
+    }
+
+    .time:hover {
+      border-color: rgba(255, 42, 42, 0.4);
+    }
+
+    .time[contenteditable="true"] {
+      background: rgba(255, 42, 42, 0.1);
+      border-style: solid;
+      border-color: var(--red);
+    }
+
+    .time.critical {
+      animation: pulse 1s infinite ease-in-out;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.5;
+      }
+    }
+
+    /* ---------- MODAL ---------- */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-close {
+      position: fixed;
+      top: clamp(12px, 3vh, 34px);
+      right: clamp(12px, 3vw, 34px);
+      width: clamp(40px, 5vw, 60px);
+      height: clamp(40px, 5vw, 60px);
+      border-radius: 50%;
+      border: 2px solid var(--white);
+      background: transparent;
+      color: var(--white);
+      font-size: clamp(1.2rem, 2.4vw, 2rem);
+      cursor: pointer;
+      z-index: 110;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-close:hover {
+      background: var(--white);
+      color: #000;
+    }
+
+    .modal-content {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-evenly;
+      padding: 4vh 3vw;
+    }
+
+    .modal-team {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(14px, 3vh, 36px);
+      min-width: 0;
+      flex: 1;
+    }
+
+    .modal-logo {
+      width: clamp(110px, 17vw, 300px);
+      height: clamp(110px, 17vw, 300px);
+      border-radius: 50%;
+      border: 4px solid var(--white);
+      object-fit: cover;
+      display: none;
+      background: #0d0d0d;
+    }
+
+    .modal-logo.has-image {
+      display: block;
+    }
+
+    .modal-name {
+      font-size: clamp(1.6rem, 4.4vw, 4.6rem);
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      text-align: center;
+      max-width: 90%;
+      overflow-wrap: break-word;
+    }
+
+    .modal-score {
+      font-size: clamp(5rem, 19vw, 17rem);
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .modal-vs {
+      color: var(--red);
+      font-size: clamp(1.4rem, 3.6vw, 3.2rem);
+      font-weight: 800;
+      text-shadow: 0 0 18px var(--red-glow);
+      flex-shrink: 0;
+      padding: 0 clamp(10px, 2vw, 30px);
+    }
+
+    @media (max-width: 620px) {
+      .main-grid {
+        gap: 6px;
+        padding: 0 8px;
+      }
+
+      .top-controls {
+        gap: 6px;
+      }
+
+      .ctrl-btn span.label {
+        display: none;
+      }
+    }
+
+    /* ---------- INSTAGRAM FOLLOW MODAL ---------- */
+    .ig-modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+
+    .ig-modal-overlay.hidden {
+      display: none;
+    }
+
+    .ig-modal-card {
+      position: relative;
+      width: min(88vw, 360px);
+      padding: clamp(26px, 4vh, 42px) clamp(20px, 4vw, 32px);
+      border-radius: 26px;
+      background: linear-gradient(135deg, #feda75 0%, #fa7e1e 25%, #d62976 50%, #962fbf 75%, #4f5bd5 100%);
+      text-align: center;
+      color: #fff;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+    }
+
+    .ig-modal-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: clamp(28px, 3.5vw, 34px);
+      height: clamp(28px, 3.5vw, 34px);
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.85);
+      background: rgba(0, 0, 0, 0.15);
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ig-modal-close:hover {
+      background: rgba(0, 0, 0, 0.35);
+    }
+
+    .ig-icon {
+      font-size: clamp(2.2rem, 6vw, 2.8rem);
+      margin-bottom: 8px;
+    }
+
+    .ig-title {
+      font-size: clamp(1rem, 3vw, 1.2rem);
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+
+    .ig-handle {
+      font-size: clamp(0.9rem, 2.6vw, 1.05rem);
+      font-weight: 600;
+      opacity: 0.95;
+      margin-bottom: 20px;
+    }
+
+    .ig-follow-btn {
+      display: inline-block;
+      background: #fff;
+      color: #d62976;
+      font-weight: 800;
+      padding: 11px 28px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-size: clamp(0.85rem, 2.4vw, 0.95rem);
+      transition: transform .15s ease;
+    }
+
+    .ig-follow-btn:hover {
+      transform: scale(1.05);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="board">
+
+    <div class="top-controls" id="topControls">
+      <button class="ctrl-btn" id="pauseBtn">⏸ <span class="label">Jeda</span></button>
+      <button class="ctrl-btn" id="showScoreBtn"><span class="label">Tampilkan Skor</span></button>
+      <button class="ctrl-btn" id="fullscreenBtn">⛶ <span class="label">Fullscreen</span></button>
+      <button class="ctrl-btn" id="clearBtn"><span class="label">></span></button>
+    </div>
+
+    <div class="restore-tab" id="restoreTab" title="Tampilkan tombol">⋯</div>
+
+    <div class="hud-hint" id="hudHint">
+      Klik nama tim / logo untuk mengubah · Klik skor, waktu, atau kuarter untuk memilih (klik 2x pada skor/waktu untuk
+      mengetik langsung) · ↑ ↓ mengatur yang dipilih · Spasi untuk jeda/lanjut
+    </div>
+
+    <div class="main-grid">
+
+      <!-- LEFT TEAM -->
+      <div class="team-panel">
+        <div class="team-name" contenteditable="false" data-default="TIM A" id="nameLeft">TIM A</div>
+        <div class="logo-wrap" id="logoWrapLeft">
+          <img id="logoImgLeft" src="" alt="Logo Tim A" />
+          <div class="logo-placeholder">+</div>
+        </div>
+        <div class="score" id="scoreLeft" tabindex="0">0</div>
+      </div>
+
+      <!-- CENTER -->
+      <div class="center-panel">
+        <div class="quarter" id="quarterDisplay" tabindex="0">Q1</div>
+        <div class="time" id="timeDisplay" tabindex="0">10:00</div>
+      </div>
+
+      <!-- RIGHT TEAM -->
+      <div class="team-panel">
+        <div class="team-name" contenteditable="false" data-default="TIM B" id="nameRight">TIM B</div>
+        <div class="logo-wrap" id="logoWrapRight">
+          <img id="logoImgRight" src="" alt="Logo Tim B" />
+          <div class="logo-placeholder">+</div>
+        </div>
+        <div class="score" id="scoreRight" tabindex="0">0</div>
+      </div>
+
+    </div>
+
+    <input type="file" id="fileInputLeft" accept="image/*" style="display:none" />
+    <input type="file" id="fileInputRight" accept="image/*" style="display:none" />
+  </div>
+
+  <!-- FULLSCREEN SCORE MODAL -->
+  <div class="modal-overlay" id="scoreModal">
+    <button class="modal-close" id="modalClose">✕</button>
+    <div class="modal-content">
+      <div class="modal-team">
+        <img class="modal-logo" id="modalLogoLeft" alt="" />
+        <div class="modal-name" id="modalNameLeft">TIM A</div>
+        <div class="modal-score" id="modalScoreLeft">0</div>
+      </div>
+      <div class="modal-vs">VS</div>
+      <div class="modal-team">
+        <img class="modal-logo" id="modalLogoRight" alt="" />
+        <div class="modal-name" id="modalNameRight">TIM B</div>
+        <div class="modal-score" id="modalScoreRight">0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INSTAGRAM FOLLOW MODAL -->
+  <div class="ig-modal-overlay" id="igModalOverlay">
+    <div class="ig-modal-card">
+      <button class="ig-modal-close" id="igModalClose">✕</button>
+      <div class="ig-icon">📸</div>
+      <div class="ig-title">Follow Instagram-nya yuk!</div>
+      <div class="ig-handle">@azmi_14.11</div>
+      <a class="ig-follow-btn" id="igFollowBtn" href="https://www.instagram.com/azmi_14.11/" target="_blank"
+        rel="noopener noreferrer">Buka Instagram</a>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      // ---------------- STATE ----------------
+      let scoreLeft = 0, scoreRight = 0;
+      const quarterLabels = ['Q1', 'Q2', 'Q3', 'Q4', 'OT'];
+      let quarterIndex = 0;
+
+      let remainingMs = 10 * 60 * 1000; // default 10:00
+      let isRunning = false;
+      let lastTs = null;
+      const MS_DISPLAY_THRESHOLD = 10000; // tampilkan milidetik 10 detik terakhir
+      const ZERO_BLINK_DURATION = 3000; // waktu berkedip 3 detik saat mencapai 0
+      let zeroTimeoutId = null;
+
+      let selectedTarget = 'time'; // 'time' | 'quarter' | 'scoreLeft' | 'scoreRight'
+
+      // ---------------- ELEMENT REFS ----------------
+      const topControls = document.getElementById('topControls');
+      const restoreTab = document.getElementById('restoreTab');
+      const hudHint = document.getElementById('hudHint');
+      const pauseBtn = document.getElementById('pauseBtn');
+      const clearBtn = document.getElementById('clearBtn');
+      const showScoreBtn = document.getElementById('showScoreBtn');
+      const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+      const nameLeft = document.getElementById('nameLeft');
+      const nameRight = document.getElementById('nameRight');
+      const logoWrapLeft = document.getElementById('logoWrapLeft');
+      const logoWrapRight = document.getElementById('logoWrapRight');
+      const logoImgLeft = document.getElementById('logoImgLeft');
+      const logoImgRight = document.getElementById('logoImgRight');
+      const fileInputLeft = document.getElementById('fileInputLeft');
+      const fileInputRight = document.getElementById('fileInputRight');
+      const scoreLeftEl = document.getElementById('scoreLeft');
+      const scoreRightEl = document.getElementById('scoreRight');
+
+      const quarterDisplay = document.getElementById('quarterDisplay');
+      const timeDisplay = document.getElementById('timeDisplay');
+
+      const scoreModal = document.getElementById('scoreModal');
+      const modalClose = document.getElementById('modalClose');
+      const modalLogoLeft = document.getElementById('modalLogoLeft');
+      const modalLogoRight = document.getElementById('modalLogoRight');
+      const modalNameLeft = document.getElementById('modalNameLeft');
+      const modalNameRight = document.getElementById('modalNameRight');
+      const modalScoreLeft = document.getElementById('modalScoreLeft');
+      const modalScoreRight = document.getElementById('modalScoreRight');
+
+      const igModalOverlay = document.getElementById('igModalOverlay');
+      const igModalClose = document.getElementById('igModalClose');
+
+      // ---------------- TIME FORMAT & RENDER ----------------
+      function formatTime(ms) {
+        if (ms < 0) ms = 0;
+        if (ms <= MS_DISPLAY_THRESHOLD) {
+          return (ms / 1000).toFixed(2);
+        }
+        const totalSec = Math.ceil(ms / 1000);
+        const m = Math.floor(totalSec / 60);
+        const s = totalSec % 60;
+        return m + ':' + String(s).padStart(2, '0');
+      }
+
+      function renderTime() {
+        timeDisplay.textContent = formatTime(remainingMs);
+      }
+
+      function clearZeroSequence() {
+        if (zeroTimeoutId) {
+          clearTimeout(zeroTimeoutId);
+          zeroTimeoutId = null;
+          timeDisplay.classList.remove('critical');
+        }
+      }
+
+      function triggerZeroSequence() {
+        timeDisplay.classList.add('critical');
+        zeroTimeoutId = setTimeout(function () {
+          timeDisplay.classList.remove('critical');
+          zeroTimeoutId = null;
+          openModal();
+        }, ZERO_BLINK_DURATION);
+      }
+
+      function renderQuarter() {
+        quarterDisplay.textContent = quarterLabels[quarterIndex];
+      }
+
+      function updatePauseBtn() {
+        pauseBtn.innerHTML = isRunning
+          ? '⏸ <span class="label">Jeda</span>'
+          : '▶ <span class="label">Lanjut</span>';
+      }
+
+      function tick(ts) {
+        if (!isRunning) { lastTs = null; return; }
+        if (lastTs === null) lastTs = ts;
+        const delta = ts - lastTs;
+        lastTs = ts;
+        remainingMs -= delta;
+        if (remainingMs <= 0) {
+          remainingMs = 0;
+          isRunning = false;
+          updatePauseBtn();
+          renderTime();
+          triggerZeroSequence();
+          return;
+        }
+        renderTime();
+        if (isRunning) requestAnimationFrame(tick);
+      }
+
+      function startTimer() {
+        if (isRunning || remainingMs <= 0) return;
+        clearZeroSequence();
+        isRunning = true;
+        lastTs = null;
+        updatePauseBtn();
+        requestAnimationFrame(tick);
+      }
+
+      function stopTimer() {
+        isRunning = false;
+        updatePauseBtn();
+      }
+
+      pauseBtn.addEventListener('click', function () {
+        if (isRunning) stopTimer(); else startTimer();
+      });
+
+      // ---------------- FULLSCREEN TOGGLE ----------------
+      function updateFullscreenBtn() {
+        const isFs = !!document.fullscreenElement;
+        fullscreenBtn.innerHTML = isFs
+          ? '⛶ <span class="label">Keluar Fullscreen</span>'
+          : '⛶ <span class="label">Fullscreen</span>';
+      }
+      fullscreenBtn.addEventListener('click', function () {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(function () { });
+        } else {
+          document.exitFullscreen().catch(function () { });
+        }
+      });
+      document.addEventListener('fullscreenchange', updateFullscreenBtn);
+
+      // ---------------- CLEAR / RESTORE CONTROLS ----------------
+      clearBtn.addEventListener('click', function () {
+        topControls.style.display = 'none';
+        hudHint.style.display = 'none';
+        restoreTab.style.display = 'flex';
+      });
+      restoreTab.addEventListener('click', function () {
+        topControls.style.display = 'flex';
+        hudHint.style.display = 'block';
+        restoreTab.style.display = 'none';
+      });
+
+      // ---------------- TEAM NAME IN-PLACE EDIT ----------------
+      function setupNameEdit(el) {
+        let before = el.textContent;
+        el.addEventListener('click', function () {
+          if (el.getAttribute('contenteditable') === 'true') return;
+          before = el.textContent;
+          el.setAttribute('contenteditable', 'true');
+          el.focus();
+          document.execCommand('selectAll', false, null);
+        });
+        el.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            el.blur();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            el.textContent = before;
+            el.blur();
+          }
+          e.stopPropagation(); // don't let arrow keys leak to global handler while typing
+        });
+        el.addEventListener('blur', function () {
+          el.setAttribute('contenteditable', 'false');
+          const val = el.textContent.trim();
+          el.textContent = val.length ? val : el.getAttribute('data-default');
+        });
+      }
+      setupNameEdit(nameLeft);
+      setupNameEdit(nameRight);
+
+      // ---------------- LOGO UPLOAD ----------------
+      function setupLogo(wrapEl, imgEl, inputEl) {
+        wrapEl.addEventListener('click', function () { inputEl.click(); });
+        inputEl.addEventListener('change', function () {
+          const file = inputEl.files && inputEl.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            imgEl.src = e.target.result;
+            wrapEl.classList.add('has-image');
+          };
+          reader.readAsDataURL(file);
+          inputEl.value = '';
+        });
+      }
+      setupLogo(logoWrapLeft, logoImgLeft, fileInputLeft);
+      setupLogo(logoWrapRight, logoImgRight, fileInputRight);
+
+      // ---------------- SELECT TARGET (quarter / time / score) ----------------
+      function selectTarget(target) {
+        selectedTarget = target;
+        quarterDisplay.classList.toggle('selected', target === 'quarter');
+        timeDisplay.classList.toggle('selected', target === 'time');
+        scoreLeftEl.classList.toggle('selected', target === 'scoreLeft');
+        scoreRightEl.classList.toggle('selected', target === 'scoreRight');
+      }
+
+      // ---------------- QUARTER SELECT ----------------
+      quarterDisplay.addEventListener('click', function () {
+        selectTarget('quarter');
+      });
+
+      // ---------------- TIME SELECT + IN-PLACE EDIT ----------------
+      let timeBefore = timeDisplay.textContent;
+
+      timeDisplay.addEventListener('click', function () {
+        if (timeDisplay.getAttribute('contenteditable') === 'true') return;
+        selectTarget('time');
+      });
+
+      timeDisplay.addEventListener('dblclick', function () {
+        stopTimer();
+        clearZeroSequence();
+        timeBefore = timeDisplay.textContent;
+        timeDisplay.setAttribute('contenteditable', 'true');
+        timeDisplay.focus();
+        document.execCommand('selectAll', false, null);
+      });
+
+      function parseTimeInput(str) {
+        str = str.trim().replace(',', '.');
+        if (/^\d+:\d{1,2}$/.test(str)) {
+          const parts = str.split(':');
+          const m = parseInt(parts[0], 10);
+          const s = parseInt(parts[1], 10);
+          if (s > 59) return null;
+          return (m * 60 + s) * 1000;
+        }
+        if (/^\d+(\.\d+)?$/.test(str)) {
+          return Math.round(parseFloat(str) * 1000);
+        }
+        return null;
+      }
+
+      function commitTimeEdit() {
+        const raw = timeDisplay.textContent;
+        const parsed = parseTimeInput(raw);
+        timeDisplay.setAttribute('contenteditable', 'false');
+        if (parsed !== null && parsed >= 0) {
+          remainingMs = parsed;
+        }
+        renderTime();
+      }
+
+      timeDisplay.addEventListener('keydown', function (e) {
+        if (timeDisplay.getAttribute('contenteditable') === 'true') {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commitTimeEdit();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            timeDisplay.textContent = timeBefore;
+            timeDisplay.setAttribute('contenteditable', 'false');
+          }
+          e.stopPropagation();
+        }
+      });
+      timeDisplay.addEventListener('blur', function () {
+        if (timeDisplay.getAttribute('contenteditable') === 'true') {
+          commitTimeEdit();
+        }
+      });
+
+      // ---------------- SCORE SELECT + IN-PLACE EDIT ----------------
+      function setupScoreEditable(el, targetName, getValue, setValue) {
+        let before = el.textContent;
+
+        el.addEventListener('click', function () {
+          if (el.getAttribute('contenteditable') === 'true') return;
+          selectTarget(targetName);
+        });
+
+        el.addEventListener('dblclick', function () {
+          before = el.textContent;
+          el.setAttribute('contenteditable', 'true');
+          el.focus();
+          document.execCommand('selectAll', false, null);
+        });
+
+        function commit() {
+          const raw = el.textContent.trim();
+          const parsed = parseInt(raw, 10);
+          el.setAttribute('contenteditable', 'false');
+          if (!isNaN(parsed) && parsed >= 0) {
+            setValue(parsed);
+          } else {
+            el.textContent = getValue();
+          }
+        }
+
+        el.addEventListener('keydown', function (e) {
+          if (el.getAttribute('contenteditable') === 'true') {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commit();
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              el.textContent = before;
+              el.setAttribute('contenteditable', 'false');
+            }
+            e.stopPropagation();
+          }
+        });
+
+        el.addEventListener('blur', function () {
+          if (el.getAttribute('contenteditable') === 'true') commit();
+        });
+      }
+
+      setupScoreEditable(scoreLeftEl, 'scoreLeft',
+        function () { return scoreLeft; },
+        function (v) { scoreLeft = v; scoreLeftEl.textContent = v; }
+      );
+      setupScoreEditable(scoreRightEl, 'scoreRight',
+        function () { return scoreRight; },
+        function (v) { scoreRight = v; scoreRightEl.textContent = v; }
+      );
+
+      // ---------------- GLOBAL KEY HANDLING (arrows, space, escape) ----------------
+      document.addEventListener('keydown', function (e) {
+        const active = document.activeElement;
+        const tag = active && active.tagName;
+        const isEditingText = active && (
+          active.getAttribute && active.getAttribute('contenteditable') === 'true'
+        );
+        if (isEditingText) return; // let text editing handle its own keys
+
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          const dir = e.key === 'ArrowUp' ? 1 : -1;
+          if (selectedTarget === 'quarter') {
+            quarterIndex = Math.min(Math.max(quarterIndex + dir, 0), quarterLabels.length - 1);
+            renderQuarter();
+          } else if (selectedTarget === 'scoreLeft') {
+            scoreLeft = Math.max(0, scoreLeft + dir);
+            scoreLeftEl.textContent = scoreLeft;
+          } else if (selectedTarget === 'scoreRight') {
+            scoreRight = Math.max(0, scoreRight + dir);
+            scoreRightEl.textContent = scoreRight;
+          } else {
+            clearZeroSequence();
+            remainingMs = Math.max(0, remainingMs + dir * 60000); // 1 menit
+            renderTime();
+          }
+        } else if (e.key === ' ' || e.code === 'Space') {
+          if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA') return; // biarkan tombol fokus tangani sendiri
+          e.preventDefault();
+          if (isRunning) stopTimer(); else startTimer();
+        } else if (e.key === 'Escape') {
+          if (!igModalOverlay.classList.contains('hidden')) closeIgModal();
+          else if (scoreModal.classList.contains('open')) closeModal();
+        }
+      });
+
+      // ---------------- FULLSCREEN SCORE MODAL ----------------
+      function openModal() {
+        modalNameLeft.textContent = nameLeft.textContent;
+        modalNameRight.textContent = nameRight.textContent;
+        modalScoreLeft.textContent = scoreLeft;
+        modalScoreRight.textContent = scoreRight;
+
+        if (logoWrapLeft.classList.contains('has-image')) {
+          modalLogoLeft.src = logoImgLeft.src;
+          modalLogoLeft.classList.add('has-image');
+        } else {
+          modalLogoLeft.classList.remove('has-image');
+        }
+        if (logoWrapRight.classList.contains('has-image')) {
+          modalLogoRight.src = logoImgRight.src;
+          modalLogoRight.classList.add('has-image');
+        } else {
+          modalLogoRight.classList.remove('has-image');
+        }
+
+        scoreModal.classList.add('open');
+      }
+      function closeModal() {
+        scoreModal.classList.remove('open');
+      }
+      showScoreBtn.addEventListener('click', openModal);
+      modalClose.addEventListener('click', closeModal);
+
+      // ---------------- INSTAGRAM FOLLOW MODAL ----------------
+      function closeIgModal() {
+        igModalOverlay.classList.add('hidden');
+      }
+      igModalClose.addEventListener('click', closeIgModal);
+      igModalOverlay.addEventListener('click', function (e) {
+        if (e.target === igModalOverlay) closeIgModal();
+      });
+
+      // ---------------- INIT ----------------
+      renderTime();
+      renderQuarter();
+      updatePauseBtn();
+      updateFullscreenBtn();
+      selectTarget('time');
+    })();
+  </script>
+
+</body>
+
+</html>
